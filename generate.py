@@ -37,65 +37,61 @@ model.eval()
 
 print("Model loaded successfully")
 
+def generate_text(
+    prompt,
+    max_words=50,
+    temperature=0.8
+):
 
-def generate_text(start_text, num_words=20):
+    words = prompt.lower().split()
 
-    words = start_text.lower().split()
+    generated = words.copy()
 
-    input_ids = [
-        word_to_id[word]
-        for word in words
-        if word in word_to_id
-    ]
+    for _ in range(max_words):
 
-    if len(input_ids) == 0:
-        return "Starting words vocabulary lo levu."
+        input_ids = []
 
-    input_tensor = torch.tensor(
-        [input_ids],
-        dtype=torch.long
-    )
+        for word in generated[-20:]:
 
-    hidden = None
+            if word in word_to_id:
+                input_ids.append(
+                    word_to_id[word]
+                )
 
-    generated_words = words.copy()
+        if len(input_ids) == 0:
+            break
 
-    with torch.no_grad():
-
-        # First, process the complete starting text
-        logits, hidden = model(
-            input_tensor,
-            hidden
+        x = torch.tensor(
+            [input_ids],
+            dtype=torch.long,
+            device=device
         )
 
-        current_id = input_ids[-1]
+        with torch.no_grad():
 
-        for _ in range(num_words):
-
-            current_tensor = torch.tensor(
-                [[current_id]],
-                dtype=torch.long
-            )
-
-            logits, hidden = model(
-                current_tensor,
-                hidden
-            )
+            logits, _ = model(x)
 
             last_logits = logits[:, -1, :]
 
-            predicted_id = torch.argmax(
+            last_logits = (
+                last_logits / temperature
+            )
+
+            probs = torch.softmax(
                 last_logits,
                 dim=-1
+            )
+
+            next_id = torch.multinomial(
+                probs,
+                num_samples=1
             ).item()
 
-            predicted_word = id_to_word[predicted_id]
+        next_word = id_to_word[next_id]
 
-            generated_words.append(predicted_word)
+        generated.append(next_word)
 
-            current_id = predicted_id
-
-    return " ".join(generated_words)
+    return " ".join(generated)
 
 prompt = input("Enter starting text: ")
 
